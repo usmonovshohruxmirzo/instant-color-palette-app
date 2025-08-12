@@ -1,32 +1,16 @@
-import { Camera, CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { useRef, useState, Platform } from 'react';
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import { useRef, useState } from 'react';
 import { Button, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { getColors } from 'react-native-image-colors';
-
-// Define TypeScript types for getColors result
-type ImageColorsResult =
-  | {
-      platform: 'android' | 'web';
-      dominant: string;
-      vibrant: string;
-      darkVibrant: string;
-      lightVibrant: string;
-      muted: string;
-    }
-  | {
-      platform: 'ios';
-      primary: string;
-      secondary: string;
-      background: string;
-      detail: string;
-    };
+import { useImageColors } from '@/hooks/useImageColor';
 
 export default function Index() {
   const [facing, setFacing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView | null>(null);
-  const [colors, setColors] = useState<string[]>([]);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  const colors = useImageColors(photoUri);
 
   if (!permission) {
     return <View />;
@@ -45,40 +29,10 @@ export default function Index() {
     if (cameraRef.current) {
       try {
         const photo = await cameraRef.current.takePictureAsync();
-        const result = await getColors(photo.uri, {
-          fallback: '#000000',
-          cache: true,
-          key: photo.uri,
-        }) as ImageColorsResult; // Cast to defined type
-
-        let extractedColors: string[] = [];
-
-        switch (result.platform) {
-          case 'android':
-          case 'web':
-            extractedColors = [
-              result.dominant,
-              result.vibrant,
-              result.darkVibrant,
-              result.lightVibrant,
-              result.muted,
-            ].filter(Boolean) as string[];
-            break;
-          case 'ios':
-            extractedColors = [
-              result.primary,
-              result.secondary,
-              result.background,
-              result.detail,
-            ].filter(Boolean) as string[];
-            break;
-          default:
-            extractedColors = [result.dominant].filter(Boolean) as string[];
-        }
-        setColors(extractedColors);
+        setPhotoUri(photo.uri);
       } catch (e) {
         console.error('Error extracting colors:', e);
-        setColors(['#000000']); // Fallback on error
+        setPhotoUri(null);
       }
     }
   }
@@ -100,8 +54,9 @@ export default function Index() {
             </TouchableOpacity>
           </View>
         </View>
+
         <View style={{ flexDirection: 'row', justifyContent: 'center', padding: 10 }}>
-          {colors.map((color, index) => (
+          {colors?.map((color, index) => (
             <View
               key={index}
               style={{
@@ -122,17 +77,9 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  message: {
-    textAlign: 'center',
-    paddingBottom: 10,
-  },
-  camera: {
-    flex: 1,
-  },
+  container: { flex: 1, justifyContent: 'center' },
+  message: { textAlign: 'center', paddingBottom: 10 },
+  camera: { flex: 1 },
   buttonContainer: {
     flex: 1,
     justifyContent: 'flex-end',
