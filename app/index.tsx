@@ -44,7 +44,6 @@ export default function Index() {
 
       for (let i = 0; i < samplePoints.length; i++) {
         const { x, y } = samplePoints[i];
-        console.log(`Sampling point ${i + 1}:`, { x, y });
 
         const manipResult = await ImageManipulator.manipulateAsync(
           photo.uri,
