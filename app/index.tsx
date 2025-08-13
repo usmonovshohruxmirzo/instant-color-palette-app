@@ -138,6 +138,7 @@ export default function Index() {
               />
             ))}
           </View>
+          <Button title="Save" color="teal" />
         </View>
       )}
     </View>
