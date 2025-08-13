@@ -122,7 +122,7 @@ export default function Index() {
       {photoUri && (
         <Image
           source={{ uri: photoUri }}
-          style={{ width: 200, height: 200, marginTop: 10, alignSelf: 'center', borderRadius: 20 }}
+          style={{ width: 200, height: 200, marginTop: 10, alignSelf: 'center' }}
         />
       )}
 
@@ -134,7 +134,7 @@ export default function Index() {
               <Image
                 key={index}
                 source={{ uri }}
-                style={{ width: 50, height: 50, margin: 5, borderWidth: 1, borderColor: '#000', borderRadius: "50%" }}
+                style={{ width: 50, height: 50, margin: 5, borderWidth: 1, borderColor: '#000' }}
               />
             ))}
           </View>
