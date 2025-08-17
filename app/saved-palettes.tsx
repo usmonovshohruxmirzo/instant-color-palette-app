@@ -76,7 +76,7 @@ function PaletteCard({ image, croppedPixelUris, id, onDelete }: PaletteCardProps
       const fileName = `palette_${new Date().toISOString().replace(/:/g, '-')}.png`;
       const asset = await MediaLibrary.createAssetAsync(uri);
       await MediaLibrary.createAlbumAsync('Downloads', asset, true);
-      await FileSystem.deleteAsync(uri, { idempotent: true }); // Clean up temporary file
+      await FileSystem.deleteAsync(uri, { idempotent: true });
       console.log('File saved to Downloads album');
       Alert.alert('Success', 'Palette downloaded to Downloads folder successfully!');
     } catch (error) {
@@ -226,7 +226,7 @@ export default function SavedPalettesScreen() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={palettes.sort((a, b) => b.id.localeCompare(a.id))} // Sort newest to oldest
+        data={palettes.sort((a, b) => b.id.localeCompare(a.id))}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <PaletteCard
