@@ -1,5 +1,14 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Image, StyleSheet, FlatList, Button, Text, Platform, Alert } from 'react-native';
+import {
+  View,
+  Image,
+  StyleSheet,
+  FlatList,
+  Button,
+  Text,
+  Platform,
+  Alert,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -22,14 +31,22 @@ interface PaletteCardProps {
 
 type ViewShotRef = React.RefObject<ViewShot>;
 
-function PaletteCard({ image, croppedPixelUris, id, onDelete }: PaletteCardProps) {
+function PaletteCard({
+  image,
+  croppedPixelUris,
+  id,
+  onDelete,
+}: PaletteCardProps) {
   const viewShotRef = useRef<ViewShot>(null);
   const shareContentRef = useRef<ViewShot>(null);
 
   const requestMediaLibraryPermission = async () => {
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Media library permission is required to save to Downloads.');
+      Alert.alert(
+        'Permission Denied',
+        'Media library permission is required to save to Downloads.',
+      );
       return false;
     }
     return true;
@@ -55,7 +72,10 @@ function PaletteCard({ image, croppedPixelUris, id, onDelete }: PaletteCardProps
         document.body.removeChild(link);
       } catch (error) {
         console.error('Error downloading PNG on web:', error);
-        Alert.alert('Error', 'Failed to download the palette as PNG. Please try again.');
+        Alert.alert(
+          'Error',
+          'Failed to download the palette as PNG. Please try again.',
+        );
       }
       return;
     }
@@ -78,10 +98,16 @@ function PaletteCard({ image, croppedPixelUris, id, onDelete }: PaletteCardProps
       await MediaLibrary.createAlbumAsync('Downloads', asset, true);
       await FileSystem.deleteAsync(uri, { idempotent: true });
       console.log('File saved to Downloads album');
-      Alert.alert('Success', 'Palette downloaded to Downloads folder successfully!');
+      Alert.alert(
+        'Success',
+        'Palette downloaded to Downloads folder successfully!',
+      );
     } catch (error) {
       console.error('Error downloading PNG:', error);
-      Alert.alert('Error', 'Failed to download the palette as PNG. Please try again.');
+      Alert.alert(
+        'Error',
+        'Failed to download the palette as PNG. Please try again.',
+      );
     }
   }, []);
 
@@ -106,10 +132,16 @@ function PaletteCard({ image, croppedPixelUris, id, onDelete }: PaletteCardProps
           files: [new File([blob], `palette_${id}.png`, { type: 'image/png' })],
         });
       } else if (Platform.OS !== 'web') {
-        await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Share your palette' });
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Share your palette',
+        });
       } else {
         console.warn('Sharing is not supported on this web browser.');
-        Alert.alert('Warning', 'Sharing is not supported on this browser. Try downloading instead.');
+        Alert.alert(
+          'Warning',
+          'Sharing is not supported on this browser. Try downloading instead.',
+        );
       }
     } catch (error) {
       console.error('Error sharing palette:', error);
@@ -129,24 +161,23 @@ function PaletteCard({ image, croppedPixelUris, id, onDelete }: PaletteCardProps
           onPress: () => onDelete(id),
         },
       ],
-      { cancelable: true }
+      { cancelable: true },
     );
   };
 
   return (
     <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1.0 }}>
       <View style={styles.card}>
-        <ViewShot ref={shareContentRef} options={{ format: 'png', quality: 1.0 }}>
+        <ViewShot
+          ref={shareContentRef}
+          options={{ format: 'png', quality: 1.0 }}
+        >
           <View style={styles.shareContent}>
             <Image source={{ uri: image }} style={styles.image} />
             <View style={styles.colorsRow}>
               {croppedPixelUris?.length > 0 ? (
                 croppedPixelUris.map((uri, i) => (
-                  <Image
-                    key={i}
-                    source={{ uri }}
-                    style={styles.colorBlock}
-                  />
+                  <Image key={i} source={{ uri }} style={styles.colorBlock} />
                 ))
               ) : (
                 <Text style={styles.emptyText}>No colors available</Text>
@@ -161,16 +192,8 @@ function PaletteCard({ image, croppedPixelUris, id, onDelete }: PaletteCardProps
             onPress={downloadAsPNG}
             disabled={Platform.OS === 'web'}
           />
-          <Button
-            color="green"
-            title="Share"
-            onPress={handleShare}
-          />
-          <Button
-            color="red"
-            title="Delete"
-            onPress={handleDelete}
-          />
+          <Button color="green" title="Share" onPress={handleShare} />
+          <Button color="red" title="Delete" onPress={handleDelete} />
         </View>
       </View>
     </ViewShot>
@@ -183,7 +206,9 @@ export default function SavedPalettesScreen() {
   const fetchPalettes = useCallback(async () => {
     try {
       const palettesJson = await AsyncStorage.getItem('palettes');
-      const fetchedPalettes: Palette[] = palettesJson ? JSON.parse(palettesJson) : [];
+      const fetchedPalettes: Palette[] = palettesJson
+        ? JSON.parse(palettesJson)
+        : [];
       const validPalettes = fetchedPalettes.filter(
         (palette): palette is Palette =>
           palette &&
@@ -191,7 +216,9 @@ export default function SavedPalettesScreen() {
           typeof palette.image === 'string' &&
           (!palette.croppedPixelUris ||
             (Array.isArray(palette.croppedPixelUris) &&
-              palette.croppedPixelUris.every((uri) => typeof uri === 'string')))
+              palette.croppedPixelUris.every(
+                (uri) => typeof uri === 'string',
+              ))),
       );
       setPalettes(validPalettes);
     } catch (error) {
@@ -200,17 +227,24 @@ export default function SavedPalettesScreen() {
     }
   }, []);
 
-  const handleDeletePalette = useCallback(async (idToDelete: string) => {
-    try {
-      const palettesJson = await AsyncStorage.getItem('palettes');
-      const currentPalettes: Palette[] = palettesJson ? JSON.parse(palettesJson) : [];
-      const updatedPalettes = currentPalettes.filter((palette) => palette.id !== idToDelete);
-      await AsyncStorage.setItem('palettes', JSON.stringify(updatedPalettes));
-      fetchPalettes();
-    } catch (error) {
-      console.error('Error deleting palette:', error);
-    }
-  }, [fetchPalettes]);
+  const handleDeletePalette = useCallback(
+    async (idToDelete: string) => {
+      try {
+        const palettesJson = await AsyncStorage.getItem('palettes');
+        const currentPalettes: Palette[] = palettesJson
+          ? JSON.parse(palettesJson)
+          : [];
+        const updatedPalettes = currentPalettes.filter(
+          (palette) => palette.id !== idToDelete,
+        );
+        await AsyncStorage.setItem('palettes', JSON.stringify(updatedPalettes));
+        fetchPalettes();
+      } catch (error) {
+        console.error('Error deleting palette:', error);
+      }
+    },
+    [fetchPalettes],
+  );
 
   useEffect(() => {
     fetchPalettes();
@@ -220,7 +254,7 @@ export default function SavedPalettesScreen() {
     useCallback(() => {
       console.log('SavedPalettesScreen focused, refreshing palettes');
       fetchPalettes();
-    }, [fetchPalettes])
+    }, [fetchPalettes]),
   );
 
   return (
@@ -237,7 +271,9 @@ export default function SavedPalettesScreen() {
           />
         )}
         contentContainerStyle={{ padding: 16 }}
-        ListEmptyComponent={<Text style={styles.emptyText}>No palettes saved yet.</Text>}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>No palettes saved yet.</Text>
+        }
       />
     </View>
   );

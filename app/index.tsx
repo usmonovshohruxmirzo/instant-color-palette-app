@@ -1,5 +1,13 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { Button, Image, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
+import {
+  Button,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Platform,
+} from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -26,7 +34,7 @@ export default function Index() {
         console.log('Camera screen unfocused');
         setCameraReady(false);
       };
-    }, [])
+    }, []),
   );
 
   async function pickImage() {
@@ -40,7 +48,11 @@ export default function Index() {
     }
   }
 
-  async function processImage(photo: { uri: string; width?: number; height?: number }) {
+  async function processImage(photo: {
+    uri: string;
+    width?: number;
+    height?: number;
+  }) {
     try {
       setPhotoUri(null);
       setCroppedPixelUris([]);
@@ -50,9 +62,12 @@ export default function Index() {
       if (Platform.OS !== 'web') {
         try {
           const permanentUri = `${FileSystem.documentDirectory}photos/${uuidv4()}.jpg`;
-          await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}photos`, {
-            intermediates: true,
-          });
+          await FileSystem.makeDirectoryAsync(
+            `${FileSystem.documentDirectory}photos`,
+            {
+              intermediates: true,
+            },
+          );
           await FileSystem.moveAsync({
             from: photo.uri,
             to: permanentUri,
@@ -62,7 +77,9 @@ export default function Index() {
           console.warn('Error moving image to permanent storage:', e);
         }
       } else {
-        console.warn('File system operations not supported on web. Using temporary URI.');
+        console.warn(
+          'File system operations not supported on web. Using temporary URI.',
+        );
       }
 
       setPhotoUri(imageUri);
@@ -85,7 +102,7 @@ export default function Index() {
         const manipResult = await ImageManipulator.manipulateAsync(
           imageUri,
           [{ crop: { originX: x, originY: y, width: 1, height: 1 } }],
-          { format: ImageManipulator.SaveFormat.JPEG }
+          { format: ImageManipulator.SaveFormat.JPEG },
         );
 
         if (!manipResult.uri) {
@@ -98,9 +115,12 @@ export default function Index() {
         if (Platform.OS !== 'web') {
           try {
             const pixelPermanentUri = `${FileSystem.documentDirectory}pixels/${uuidv4()}.jpg`;
-            await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}pixels`, {
-              intermediates: true,
-            });
+            await FileSystem.makeDirectoryAsync(
+              `${FileSystem.documentDirectory}pixels`,
+              {
+                intermediates: true,
+              },
+            );
             await FileSystem.moveAsync({
               from: manipResult.uri,
               to: pixelPermanentUri,
@@ -167,13 +187,20 @@ export default function Index() {
       const existingPalettesJson = await AsyncStorage.getItem('palettes');
       let existingPalettes = [];
       try {
-        existingPalettes = existingPalettesJson ? JSON.parse(existingPalettesJson) : [];
+        existingPalettes = existingPalettesJson
+          ? JSON.parse(existingPalettesJson)
+          : [];
         if (!Array.isArray(existingPalettes)) {
-          console.warn('Existing palettes is not an array, resetting to empty array');
+          console.warn(
+            'Existing palettes is not an array, resetting to empty array',
+          );
           existingPalettes = [];
         }
       } catch (e) {
-        console.warn('Error parsing existing palettes, resetting to empty array:', e);
+        console.warn(
+          'Error parsing existing palettes, resetting to empty array:',
+          e,
+        );
         existingPalettes = [];
       }
 
@@ -204,7 +231,9 @@ export default function Index() {
   if (!permission.granted) {
     return (
       <View style={styles.container}>
-        <Text style={styles.message}>We need your permission to show the camera</Text>
+        <Text style={styles.message}>
+          We need your permission to show the camera
+        </Text>
         <Button onPress={requestPermission} title="Grant Permission" />
       </View>
     );
@@ -214,7 +243,9 @@ export default function Index() {
     <View style={styles.container}>
       {Platform.OS === 'web' ? (
         <View style={styles.webContainer}>
-          <Text style={styles.message}>Camera is not supported on web. Upload an image instead.</Text>
+          <Text style={styles.message}>
+            Camera is not supported on web. Upload an image instead.
+          </Text>
           <Button title="Upload Image" onPress={pickImage} />
         </View>
       ) : (
@@ -227,10 +258,20 @@ export default function Index() {
           >
             <View style={styles.buttonContainer}>
               <View style={styles.buttons}>
-                <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
-                  <MaterialIcons name="flip-camera-android" size={24} color="black" />
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={toggleCameraFacing}
+                >
+                  <MaterialIcons
+                    name="flip-camera-android"
+                    size={24}
+                    color="black"
+                  />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.button} onPress={captureAndExtractPalette}>
+                <TouchableOpacity
+                  style={styles.button}
+                  onPress={captureAndExtractPalette}
+                >
                   <MaterialIcons name="camera" size={24} color="black" />
                 </TouchableOpacity>
               </View>
@@ -242,7 +283,12 @@ export default function Index() {
       {photoUri && (
         <Image
           source={{ uri: photoUri }}
-          style={{ width: 200, height: 200, marginTop: 10, alignSelf: 'center' }}
+          style={{
+            width: 200,
+            height: 200,
+            marginTop: 10,
+            alignSelf: 'center',
+          }}
         />
       )}
 
@@ -254,7 +300,13 @@ export default function Index() {
               <Image
                 key={index}
                 source={{ uri }}
-                style={{ width: 50, height: 50, margin: 5, borderWidth: 1, borderColor: '#000' }}
+                style={{
+                  width: 50,
+                  height: 50,
+                  margin: 5,
+                  borderWidth: 1,
+                  borderColor: '#000',
+                }}
               />
             ))}
           </View>
@@ -271,7 +323,12 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center' },
   webContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  message: { textAlign: 'center', paddingBottom: 10, fontSize: 16, color: '#666' },
+  message: {
+    textAlign: 'center',
+    paddingBottom: 10,
+    fontSize: 16,
+    color: '#666',
+  },
   camera: { flex: 1 },
   buttonContainer: {
     flex: 1,
