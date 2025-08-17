@@ -1,8 +1,14 @@
-import React, { useRef, useState } from 'react';
-import { Button, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useState, useCallback } from 'react';
+import { Button, Image, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImageManipulator from 'expo-image-manipulator';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
+import * as FileSystem from 'expo-file-system';
+import * as ImagePicker from 'expo-image-picker';
+import { useFocusEffect, router } from 'expo-router';
 
 export default function Index() {
   const [facing, setFacing] = useState<CameraType>('back');
@@ -10,26 +16,58 @@ export default function Index() {
   const cameraRef = useRef<CameraView | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [croppedPixelUris, setCroppedPixelUris] = useState<string[]>([]);
+  const [cameraReady, setCameraReady] = useState(false);
 
-  async function captureAndExtractPalette() {
-    if (!cameraRef.current) return;
+  useFocusEffect(
+    useCallback(() => {
+      console.log('Camera screen focused');
+      setCameraReady(true);
+      return () => {
+        console.log('Camera screen unfocused');
+        setCameraReady(false);
+      };
+    }, [])
+  );
 
+  async function pickImage() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets[0].uri) {
+      await processImage(result.assets[0]);
+    }
+  }
+
+  async function processImage(photo: { uri: string; width?: number; height?: number }) {
     try {
       setPhotoUri(null);
       setCroppedPixelUris([]);
 
-      const photo = await cameraRef.current.takePictureAsync({
-        base64: true,
-        quality: 1,
-      });
+      let imageUri = photo.uri;
 
-      if (!photo.base64 || !photo.uri) throw new Error('Failed to capture image or get base64');
+      if (Platform.OS !== 'web') {
+        try {
+          const permanentUri = `${FileSystem.documentDirectory}photos/${uuidv4()}.jpg`;
+          await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}photos`, {
+            intermediates: true,
+          });
+          await FileSystem.moveAsync({
+            from: photo.uri,
+            to: permanentUri,
+          });
+          imageUri = permanentUri;
+        } catch (e) {
+          console.warn('Error moving image to permanent storage:', e);
+        }
+      } else {
+        console.warn('File system operations not supported on web. Using temporary URI.');
+      }
 
-      setPhotoUri(photo.uri);
+      setPhotoUri(imageUri);
 
-      const { width, height } = photo;
-
-      if (!width || !height) throw new Error('Invalid image dimensions');
+      const { width = 1000, height = 1000 } = photo;
 
       const samplePoints = [
         { x: Math.floor(width / 2), y: Math.floor(height / 2) },
@@ -39,55 +77,123 @@ export default function Index() {
         { x: Math.floor((3 * width) / 4), y: Math.floor((3 * height) / 4) },
       ];
 
-      const colors: string[] = [];
       const pixelUris: string[] = [];
 
       for (let i = 0; i < samplePoints.length; i++) {
         const { x, y } = samplePoints[i];
 
         const manipResult = await ImageManipulator.manipulateAsync(
-          photo.uri,
+          imageUri,
           [{ crop: { originX: x, originY: y, width: 1, height: 1 } }],
-          { base64: true, format: ImageManipulator.SaveFormat.JPEG }
+          { format: ImageManipulator.SaveFormat.JPEG }
         );
 
-        if (!manipResult.base64 || !manipResult.uri) {
+        if (!manipResult.uri) {
           console.warn(`Failed to crop point ${i + 1}`);
           continue;
         }
 
-        pixelUris.push(manipResult.uri);
+        let pixelUri = manipResult.uri;
 
-        try {
-          const binary = atob(manipResult.base64);
-          const offset = 20;
-
-          if (binary.length < offset + 3) {
-            console.warn(`Base64 too short for point ${i + 1}: ${binary.length} bytes`);
-            continue;
+        if (Platform.OS !== 'web') {
+          try {
+            const pixelPermanentUri = `${FileSystem.documentDirectory}pixels/${uuidv4()}.jpg`;
+            await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}pixels`, {
+              intermediates: true,
+            });
+            await FileSystem.moveAsync({
+              from: manipResult.uri,
+              to: pixelPermanentUri,
+            });
+            pixelUri = pixelPermanentUri;
+          } catch (e) {
+            console.warn(`Error saving cropped pixel ${i + 1}:`, e);
           }
-
-          const r = binary.charCodeAt(offset);
-          const g = binary.charCodeAt(offset + 1);
-          const b = binary.charCodeAt(offset + 2);
-          const hexColor = `#${((1 << 24) + (r << 16) + (g << 8) + b)
-            .toString(16)
-            .slice(1)
-            .padStart(6, '0')}`;
-
-          colors.push(hexColor);
-        } catch (e) {
-          console.warn(`Error extracting color for point ${i + 1}:`, e);
         }
+
+        pixelUris.push(pixelUri);
+      }
+
+      if (pixelUris.length === 0) {
+        console.warn('No valid cropped pixels generated');
+        return;
       }
 
       setCroppedPixelUris(pixelUris);
     } catch (e) {
-      console.error('Error in captureAndExtractPalette:', e);
+      console.error('Error processing image:', e);
       setPhotoUri(null);
       setCroppedPixelUris([]);
     }
   }
+
+  async function captureAndExtractPalette() {
+    if (!cameraRef.current || !cameraReady) {
+      console.warn('Camera is not ready or ref is null');
+      return;
+    }
+
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 1,
+      });
+
+      if (!photo.uri) {
+        console.error('Failed to capture image');
+        return;
+      }
+
+      await processImage(photo);
+    } catch (e) {
+      console.error('Error capturing image:', e);
+    }
+  }
+
+  async function savePalette() {
+    if (!photoUri || croppedPixelUris.length === 0) {
+      console.warn('No photo or cropped pixels to save');
+      return;
+    }
+
+    try {
+      const newPalette = {
+        id: uuidv4(),
+        image: photoUri,
+        croppedPixelUris,
+      };
+
+      console.log('Saving palette:', newPalette);
+
+      const existingPalettesJson = await AsyncStorage.getItem('palettes');
+      let existingPalettes = [];
+      try {
+        existingPalettes = existingPalettesJson ? JSON.parse(existingPalettesJson) : [];
+        if (!Array.isArray(existingPalettes)) {
+          console.warn('Existing palettes is not an array, resetting to empty array');
+          existingPalettes = [];
+        }
+      } catch (e) {
+        console.warn('Error parsing existing palettes, resetting to empty array:', e);
+        existingPalettes = [];
+      }
+
+      const updatedPalettes = [...existingPalettes, newPalette];
+
+      await AsyncStorage.setItem('palettes', JSON.stringify(updatedPalettes));
+      console.log('Palette saved successfully, navigating to saved-palettes');
+
+      setPhotoUri(null);
+      setCroppedPixelUris([]);
+      router.push('/saved-palettes');
+    } catch (e) {
+      console.error('Error saving palette:', e);
+    }
+  }
+
+  const cancelPalette = () => {
+    setPhotoUri(null);
+    setCroppedPixelUris([]);
+  };
 
   function toggleCameraFacing() {
     setFacing((current) => (current === 'back' ? 'front' : 'back'));
@@ -106,18 +212,32 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <CameraView style={styles.camera} facing={facing} ref={cameraRef}>
-        <View style={styles.buttonContainer}>
-          <View style={styles.buttons}>
-            <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
-              <MaterialIcons name="flip-camera-android" size={24} color="black" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={captureAndExtractPalette}>
-              <MaterialIcons name="camera" size={24} color="black" />
-            </TouchableOpacity>
-          </View>
+      {Platform.OS === 'web' ? (
+        <View style={styles.webContainer}>
+          <Text style={styles.message}>Camera is not supported on web. Upload an image instead.</Text>
+          <Button title="Upload Image" onPress={pickImage} />
         </View>
-      </CameraView>
+      ) : (
+        cameraReady && (
+          <CameraView
+            style={styles.camera}
+            facing={facing}
+            ref={cameraRef}
+            onCameraReady={() => setCameraReady(true)}
+          >
+            <View style={styles.buttonContainer}>
+              <View style={styles.buttons}>
+                <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
+                  <MaterialIcons name="flip-camera-android" size={24} color="black" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.button} onPress={captureAndExtractPalette}>
+                  <MaterialIcons name="camera" size={24} color="black" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </CameraView>
+        )
+      )}
 
       {photoUri && (
         <Image
@@ -138,7 +258,10 @@ export default function Index() {
               />
             ))}
           </View>
-          <Button title="Save" color="teal" />
+          <View style={styles.buttonRow}>
+            <Button title="Save" color="teal" onPress={savePalette} />
+            <Button title="Cancel" color="gray" onPress={cancelPalette} />
+          </View>
         </View>
       )}
     </View>
@@ -147,7 +270,8 @@ export default function Index() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center' },
-  message: { textAlign: 'center', paddingBottom: 10 },
+  webContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  message: { textAlign: 'center', paddingBottom: 10, fontSize: 16, color: '#666' },
   camera: { flex: 1 },
   buttonContainer: {
     flex: 1,
@@ -176,27 +300,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   colorsTitle: {
-    fontSize: 20
+    fontSize: 20,
   },
   pixelContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
   },
-  paletteContainer: {
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-  colorEntry: {
+  buttonRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 5,
-  },
-  colorSwatch: {
-    width: 50,
-    height: 50,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#000',
+    justifyContent: 'space-between',
+    width: '40%',
+    marginTop: 10,
   },
 });
